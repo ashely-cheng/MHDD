@@ -1,0 +1,881 @@
+<!DOCTYPE html>
+<html lang="zh">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>智能家居控制面板</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Pacifico&display=swap" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        primary: '#3B82F6',
+                        secondary: '#10B981'
+                    },
+                    borderRadius: {
+                        'none': '0px',
+                        'sm': '2px',
+                        DEFAULT: '4px',
+                        'md': '8px',
+                        'lg': '12px',
+                        'xl': '16px',
+                        '2xl': '20px',
+                        '3xl': '24px',
+                        'full': '9999px',
+                        'button': '4px'
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        body {
+            min-height: 1024px;
+            background-color: #F3F4F6;
+        }
+
+        .device-card {
+            transition: all 0.3s ease;
+        }
+
+        .device-card:hover {
+            transform: translateY(-2px);
+        }
+
+        input[type="range"] {
+            -webkit-appearance: none;
+            width: 100%;
+            height: 4px;
+            background: #E5E7EB;
+            border-radius: 2px;
+            outline: none;
+        }
+
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 16px;
+            height: 16px;
+            background: #3B82F6;
+            border-radius: 50%;
+            cursor: pointer;
+        }
+
+        /* 弹窗加载动画 */
+        .loading-dots {
+            display: flex;
+            justify-content: center;
+            padding: 20px;
+            gap: 8px;
+        }
+
+        .loading-dots span {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background-color: #3B82F6;
+            display: inline-block;
+            animation: bounce 1.4s infinite ease-in-out both;
+        }
+
+        .loading-dots span:nth-child(1) {
+            animation-delay: -0.32s;
+        }
+
+        .loading-dots span:nth-child(2) {
+            animation-delay: -0.16s;
+        }
+
+        @keyframes bounce {
+
+            0%,
+            80%,
+            100% {
+                transform: scale(0);
+                opacity: 0.5;
+            }
+
+            40% {
+                transform: scale(1);
+                opacity: 1;
+            }
+        }
+
+        /* 弹窗内容样式 */
+        .modal-content {
+            padding: 20px;
+        }
+
+        .modal-content .device-detail {
+            margin-bottom: 15px;
+        }
+
+        .modal-content .detail-title {
+            font-weight: bold;
+            margin-bottom: 5px;
+            color: #3B82F6;
+        }
+
+        .modal-content .detail-value {
+            padding: 8px;
+            background: #F3F4F6;
+            border-radius: 4px;
+        }
+
+        .modal-content .control-panel {
+            padding: 20px;
+        }
+
+        .modal-content .control-panel .temp-display {
+            text-align: center;
+            margin: 20px 0;
+        }
+
+        .modal-content .control-panel .temp-slider {
+            margin: 20px 0;
+        }
+
+        .modal-content .control-panel .mode-buttons {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 10px;
+            margin: 20px 0;
+        }
+
+        .modal-content .control-panel .mode-button {
+            padding: 15px 0;
+            text-align: center;
+            border-radius: 8px;
+            cursor: pointer;
+        }
+
+        .modal-content .control-panel .mode-button.active {
+            background-color: #3B82F6;
+            color: white;
+        }
+
+        .modal-content .control-panel .control-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin: 15px 0;
+        }
+
+        /* 弹窗中的按钮样式 */
+        .modal-content .modal-button {
+            background: #3B82F6;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin-top: 10px;
+        }
+
+        .modal-content .modal-button:hover {
+            background: #2563EB;
+        }
+
+        /* 错误提示样式 */
+        .error {
+            color: #EF4444;
+            padding: 20px;
+            text-align: center;
+        }
+    </style>
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+</head>
+
+<body>
+    <div class="max-w-[1440px] mx-auto px-6 py-8">
+        <header class="flex justify-between items-center mb-8">
+            <div>
+                <h1 class="text-2xl font-bold text-gray-900" id="greeting">晚上好，张晓明</h1>
+                <div class="flex items-center mt-2 text-gray-600">
+                    <i class="fas fa-cloud-sun text-xl mr-2"></i>
+                    <span>23°C 多云 | 2024年1月15日 星期一 20:30</span>
+                </div>
+            </div>
+            <div class="flex items-center">
+                <button class="mr-4 !rounded-button bg-gray-100 p-3">
+                    <i class="fas fa-bell text-gray-600"></i>
+                </button>
+                <div class="w-10 h-10 rounded-full overflow-hidden">
+                    <img src="https://ai-public.mastergo.com/ai/img_res/a65f6fd014f7698cf5f7ced36498355e.jpg" alt="用户头像"
+                        class="w-full h-full object-cover">
+                </div>
+            </div>
+        </header>
+
+        <div class="flex space-x-4 mb-8 overflow-x-auto py-2">
+            <button id="btn-living-room"
+                class="flex items-center px-6 py-3 bg-primary text-white !rounded-button whitespace-nowrap"
+                data-room="A">
+                <i class="fas fa-couch mr-2"></i>
+                <span>客厅</span>
+            </button>
+            <button id="btn-bedroom"
+                class="flex items-center px-6 py-3 bg-white text-gray-700 !rounded-button whitespace-nowrap"
+                data-room="B">
+                <i class="fas fa-bed mr-2"></i>
+                <span>主卧室</span>
+            </button>
+            <button id="btn-kitchen"
+                class="flex items-center px-6 py-3 bg-white text-gray-700 !rounded-button whitespace-nowrap"
+                data-room="C">
+                <i class="fas fa-utensils mr-2"></i>
+                <span>厨房</span>
+            </button>
+        </div>
+
+        <div id="component-container" class="grid grid-cols-3 gap-6 mb-8">
+            <!-- 动态加载的组件将显示在这里 -->
+        </div>
+
+        <h2 class="text-xl font-bold mb-4">快捷场景</h2>
+        <div class="grid grid-cols-4 gap-4 mb-8">
+            <div class="bg-white p-6 rounded-lg shadow-sm cursor-pointer hover:shadow-md transition-shadow">
+                <div class="flex items-center justify-between mb-4">
+                    <i class="fas fa-house text-2xl text-primary"></i>
+                    <i class="fas fa-ellipsis-v text-gray-400"></i>
+                </div>
+                <h3 class="font-medium">回家模式</h3>
+                <p class="text-sm text-gray-500 mt-2">自动开启空调、灯光</p>
+            </div>
+            <div class="bg-white p-6 rounded-lg shadow-sm cursor-pointer hover:shadow-md transition-shadow">
+                <div class="flex items-center justify-between mb-4">
+                    <i class="fas fa-moon text-2xl text-primary"></i>
+                    <i class="fas fa-ellipsis-v text-gray-400"></i>
+                </div>
+                <h3 class="font-medium">睡眠模式</h3>
+                <p class="text-sm text-gray-500 mt-2">调暗灯光、关闭非必要设备</p>
+            </div>
+            <div class="bg-white p-6 rounded-lg shadow-sm cursor-pointer hover:shadow-md transition-shadow">
+                <div class="flex items-center justify-between mb-4">
+                    <i class="fas fa-film text-2xl text-primary"></i>
+                    <i class="fas fa-ellipsis-v text-gray-400"></i>
+                </div>
+                <h3 class="font-medium">影院模式</h3>
+                <p class="text-sm text-gray-500 mt-2">关闭窗帘、调暗灯光</p>
+            </div>
+            <div class="bg-white p-6 rounded-lg shadow-sm cursor-pointer hover:shadow-md transition-shadow">
+                <div class="flex items-center justify-between mb-4">
+                    <i class="fas fa-door-open text-2xl text-primary"></i>
+                    <i class="fas fa-ellipsis-v text-gray-400"></i>
+                </div>
+                <h3 class="font-medium">离家模式</h3>
+                <p class="text-sm text-gray-500 mt-2">关闭所有设备、开启安防</p>
+            </div>
+        </div>
+
+        <div class="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200">
+            <div class="max-w-[1440px] mx-auto px-6">
+                <div class="flex justify-around py-4">
+                    <button class="flex flex-col items-center text-primary">
+                        <i class="fas fa-home text-xl mb-1"></i>
+                        <span class="text-sm">首页</span>
+                    </button>
+                    <button class="flex flex-col items-center text-gray-400">
+                        <i class="fas fa-list text-xl mb-1"></i>
+                        <span class="text-sm">设备</span>
+                    </button>
+                    <button class="flex flex-col items-center text-gray-400">
+                        <i class="fas fa-magic text-xl mb-1"></i>
+                        <span class="text-sm">场景</span>
+                    </button>
+                    <button class="flex flex-col items-center text-gray-400">
+                        <i class="fas fa-user text-xl mb-1"></i>
+                        <span class="text-sm">我的</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 弹窗 -->
+    <!-- <div id="modal" class="fixed hidden inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center">
+    <div class="bg-white rounded-lg shadow-xl w-full max-w-md max-h-[90vh] overflow-hidden">
+        <div class="flex justify-between items-center px-6 py-4 border-b">
+            <h2 id="modal-title" class="text-lg font-semibold">组件详情</h2>
+            <button id="close-modal" class="text-gray-500 hover:text-gray-700">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+        <div class="p-6 overflow-y-auto" id="modal-body"> -->
+    <!-- 弹窗内容将在这里动态加载 -->
+    <!-- </div>
+    </div> -->
+    <!-- 弹窗（自适应内容尺寸版本） -->
+    <!-- 弹窗结构 -->
+    <!-- 弹窗结构（仅修改此部分即可居中） -->
+    <div id="modal" class="fixed hidden inset-0 bg-black bg-opacity-50 z-50 grid place-items-center p-4">
+        <!-- 白色弹窗容器（整体居中） -->
+        <div class="bg-white rounded-lg shadow-xl w-full max-w-md h-[70vh] mx-auto my-auto">
+            <!-- 标题栏（保持原有样式） -->
+            <div class="flex justify-between items-center px-6 py-4 border-b">
+                <h2 id="modal-title" class="text-lg font-semibold">组件详情</h2>
+                <button id="close-modal" class="text-gray-500 hover:text-gray-700">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <!-- 内容区（保持原有样式） -->
+            <div class="p-6 overflow-y-auto h-[calc(70vh-72px)]" id="modal-body">
+                <!-- 动态内容将在这里加载 -->
+            </div>
+        </div>
+    </div>
+    </div>
+    <script>
+
+        // 定义每个场景的初始组件（格式：场景字母+组件ID）
+        const initialComponents = {
+            'A': [],  // 客厅初始组件ID: 1, 2
+            'B': [],  // 卧室初始组件ID: 3, 4
+            'C': [],       // 厨房初始组件ID: 1
+        };
+
+        $(document).ready(function () {
+            // 在 $(document).ready 函数开头添加
+            // 获取URL参数
+            const urlParams = new URLSearchParams(window.location.search);
+            const username1 = urlParams.get('username');
+            const instruction = urlParams.get('instruction');
+            const stateParam = urlParams.get('state');
+
+            // 解析状态
+            let currentState = {};
+            try {
+                currentState = stateParam ? JSON.parse(decodeURIComponent(stateParam)) : {};
+            } catch (e) {
+                console.error('解析状态失败:', e);
+                currentState = {};
+            }
+
+            $(document).ready(function () {
+                // 修改loadScene函数
+                async function loadScene(sceneId) {
+                    try {
+                        console.log(`[FRONTEND] 加载场景 ${sceneId}`);
+                        const response = await fetch(`http://localhost:3000/components`);
+                        if (!response.ok) throw new Error(`HTTP错误: ${response.status}`);
+
+                        const data = await response.json();
+                        console.log("[FRONTEND] 接收数据:", data);
+
+                        const container = document.getElementById("component-container");
+                        container.innerHTML = "";
+
+                        if (data[sceneId] && data[sceneId].length > 0) {
+                            data[sceneId].forEach(item => {
+                                const div = document.createElement("div");
+                                div.innerHTML = item.html;
+                                if (div.firstElementChild) {
+                                    container.appendChild(div.firstElementChild);
+                                    console.log(`[FRONTEND] 添加组件 ${item.id}`);
+                                }
+                            });
+                        } else {
+                            container.innerHTML = `<div class="empty">该场景暂无设备</div>`;
+                        }
+                    } catch (error) {
+                        console.error("[FRONTEND] 加载失败:", error);
+                        document.getElementById("component-container").innerHTML =
+                            `<div class="error">加载失败: ${error.message}</div>`;
+                    }
+                }
+
+                // 其他代码保持不变...
+            });
+
+            // async function loadScene(sceneId) {
+            //     try {
+            //         console.log(`[FRONTEND] 加载场景 ${sceneId}`);
+            //         const response = await fetch(`http://localhost:3000/components`);
+            //         if (!response.ok) throw new Error(`HTTP错误: ${response.status}`);
+
+            //         const data = await response.json();
+            //         console.log("[FRONTEND] 接收数据:", data);
+
+            //         const container = document.getElementById("component-container");
+            //         container.innerHTML = "";
+
+            //         if (data[sceneId] && data[sceneId].length > 0) {
+            //             data[sceneId].forEach(item => {
+            //                 const div = document.createElement("div");
+            //                 div.innerHTML = item.html;
+            //                 // 确保只添加有效元素
+            //                 if (div.firstElementChild) {
+            //                     container.appendChild(div.firstElementChild);
+            //                     console.log(`[FRONTEND] 添加组件 ${item.id}`);
+            //                 }
+            //             });
+            //         } else {
+            //             container.innerHTML = `<div class="empty">该场景暂无设备</div>`;
+            //         }
+            //     } catch (error) {
+            //         console.error("[FRONTEND] 加载失败:", error);
+            //         document.getElementById("component-container").innerHTML = 
+            //             `<div class="error">加载失败: ${error.message}</div>`;
+            //     }
+            // }
+
+            function saveState() {
+                const currentScene = $('.room-btn.bg-primary').data('room') || 'A';
+                const componentIds = [];
+
+                $('.device-card').each(function () {
+                    componentIds.push(parseInt($(this).data('id')));
+                });
+
+                const state = {
+                    scene: currentScene,
+                    components: componentIds
+                };
+
+                // 获取用户名
+                const username = new URLSearchParams(window.location.search).get('username');
+
+                if (username) {
+                    // 发送状态到后端保存
+                    $.ajax({
+                        url: 'http://localhost:3000/save-state',
+                        method: 'POST',
+                        contentType: 'application/json',
+                        data: JSON.stringify({
+                            username: username,
+                            state: state
+                        }),
+                        success: function () {
+                            console.log('状态保存成功');
+                        },
+                        error: function (error) {
+                            console.error('状态保存失败:', error);
+                        }
+                    });
+                }
+            }
+
+            // 场景切换时
+            $(".room-btn").click(function () {
+                const sceneId = $(this).data("room");
+                loadScene(sceneId);
+            });
+
+
+            // 更新组件函数
+            function updateComponents(sceneId, componentsData, currentState) {
+                if (!componentsData[sceneId]) return;
+
+                // 清空容器
+                $("#component-container").empty();
+
+                // 按照新顺序添加所有组件
+                componentsData[sceneId].forEach(item => {
+                    const $component = $(item.html);
+                    $component.attr("data-id", item.id);
+                    $("#component-container").append($component);
+                });
+
+                // 保存新状态
+                saveState();
+            }
+
+            // 在每次修改后自动保存状态
+            $(document).on('click', '.device-card', function () {
+                setTimeout(saveState, 500); // 延迟保存以确保模态框已更新
+            });
+
+            // 修改处理指令的逻辑
+            if (instruction) {
+                console.log('执行修改指令:', instruction);
+
+                try {
+                    // 尝试解析指令为JSON
+                    const parsedInstruction = JSON.parse(instruction);
+                    if (parsedInstruction.prediction) {
+                        // 处理新的预测格式
+                        $.get(`http://localhost:3000/components`, function (data) {
+                            for (let scene in data) {
+                                data[scene].forEach(item => {
+                                    if (item.action === 'delete') {
+                                        $(`.device-card[data-id="${item.id}"]`).remove();
+                                    } else if (item.action === 'update') {
+                                        const existing = $(`.device-card[data-id="${item.id}"]`);
+                                        if (existing.length) {
+                                            existing.replaceWith(item.html);
+                                        } else {
+                                            const $component = $(item.html);
+                                            $component.attr("data-id", item.id);
+                                            $("#component-container").append($component);
+                                        }
+                                    } else {
+                                        if (!$(`.device-card[data-id="${item.id}"]`).length) {
+                                            const $component = $(item.html);
+                                            $component.attr("data-id", item.id);
+                                            $("#component-container").append($component);
+                                        }
+                                    }
+                                });
+                                saveState();
+                            }
+                        });
+                    }
+                } catch (e) {
+                    // 如果不是JSON，保持原有处理逻辑
+                    console.log('指令不是JSON格式，按原样处理');
+                }
+            }
+
+            // 获取URL参数中的用户名
+            function getParameterByName(name) {
+                const url = window.location.href;
+                name = name.replace(/[\[\]]/g, '\\$&');
+                const regex = new RegExp('[?&]' + name + '(=([^&#]*)|&|#|$)'),
+                    results = regex.exec(url);
+                if (!results) return null;
+                if (!results[2]) return '';
+                return decodeURIComponent(results[2].replace(/\+/g, ' '));
+            }
+
+            // 设置用户名
+            const username = getParameterByName('username');
+            if (username) {
+                $('#greeting').text(`晚上好，${username}`);
+            }
+
+            // 场景切换功能
+            async function loadScene(sceneId) {
+                // 清空容器
+                $("#component-container").empty();
+
+                // 加载该场景的初始组件
+                await loadInitialComponents(sceneId);
+
+                // 保留原有功能：加载通过NLP解析的组件
+                $.get(`http://localhost:3000/components`, function (data) {
+                    if (data[sceneId]) {
+                        data[sceneId].forEach(component => {
+                            // 避免重复加载
+                            if (!$(`.device-card[data-id="${component.id}"]`).length) {
+                                const $component = $(component.html);
+                                $component.attr("data-id", component.id);
+                                $("#component-container").append($component);
+                            }
+                        });
+                    }
+                });
+            }
+
+            // 加载初始组件
+            async function loadInitialComponents(sceneId) {
+                const componentIds = initialComponents[sceneId] || [];
+
+                try {
+                    // 批量获取组件数据
+                    const responses = await Promise.all(
+                        componentIds.map(id =>
+                            $.get(`http://localhost:3000/component/${id}`)
+                        )
+                    );
+
+                    // 渲染组件
+                    responses.forEach(response => {
+                        if (response.html) {
+                            const $component = $(response.html);
+                            $component.attr("data-id", response.id);
+                            $("#component-container").append($component);
+                        }
+                    });
+                } catch (error) {
+                    console.error("加载初始组件失败:", error);
+                }
+            }
+
+            // function bindComponentEvents() {
+            //     $(".device-card").off("click").on("click", function() {
+            //         const componentId = $(this).attr("data-id");
+            //         console.log("点击的组件ID:", componentId);
+
+            //         if (!componentId) {
+            //             console.error("没有找到组件ID");
+            //             return;
+            //         }
+
+            //         // 显示加载状态
+            //         $("#modal-body").html('<div class="text-center py-4">加载中...</div>');
+            //         $("#modal").css("display", "flex");
+
+            //         // 获取组件详情
+            //         $.get(`http://localhost:3000/component/${componentId}`)
+            //             .done(function(component) {
+            //                 console.log("获取到组件:", component);
+            //                 if (component.relate_id) {
+            //                     // 获取关联组件
+            //                     $.get(`http://localhost:3000/component/${component.relate_id}`)
+            //                         .done(function(data) {
+            //                             console.log("获取到关联组件:", data);
+            //                             if (data.html) {
+            //                                 $("#modal-body").html(data.html);
+            //                             } else {
+            //                                 $("#modal-body").html("<p class='text-center py-4'>未找到关联组件内容</p>");
+            //                             }
+            //                         })
+            //                         .fail(function() {
+            //                             console.error("加载关联组件失败");
+            //                             $("#modal-body").html("<p class='text-center py-4 text-red-500'>加载关联组件失败</p>");
+            //                         });
+            //                 } else {
+            //                     $("#modal-body").html("<p class='text-center py-4'>该组件没有关联功能</p>");
+            //                 }
+            //             })
+            //             .fail(function() {
+            //                 console.error("加载组件失败");
+            //                 $("#modal-body").html("<p class='text-center py-4 text-red-500'>加载组件失败</p>");
+            //             });
+            //     });
+            // }
+
+
+
+            $(document).on("click", ".device-card", function (e) {
+                e.stopPropagation();  // 防止事件冒泡
+
+                const componentId = $(this).attr("data-id");
+                console.log("点击的组件ID:", componentId);
+
+                if (!componentId) {
+                    console.error("组件缺少data-id属性");
+                    return;
+                }
+
+                // 显示弹窗并清空内容
+                $("#modal").show();
+                $("#modal-body").html('');  // 清空内容
+                $("#modal-title").text("加载中...");
+
+                // 发送请求获取组件详情
+                // $.ajax({
+                //     url: `http://localhost:3000/component/${componentId}`,
+                //     method: 'GET',
+                //     success: function(response) {
+                //         console.log("API响应:", response);
+
+                //         // 直接使用返回的 modalContent 插入详情内容
+                //         if (response.modalContent) {
+                //             // 确保只插入核心内容，去除外层弹窗结构
+                //             var modalContent = response.modalContent;
+
+                //             // 如果 modalContent 是 HTML 字符串，直接插入
+                //             $("#modal-body").html(modalContent);
+                //             $("#modal-title").text(response.name || "组件详情"); // 设置弹窗标题
+
+                //             // 如果 modalContent 中包含空调面板或灯光面板等，移除 hidden 类
+                //             $("#lightControlPanel, #airControlPanel").removeClass("hidden");
+                //         } else {
+                //             // 如果没有 modalContent，显示错误消息
+                //             $("#modal-body").html('<div class="error">组件详情加载失败</div>');
+                //         }
+                //     },
+                //     error: function(xhr, status, error) {
+                //         console.error("请求失败:", error);
+                //         $("#modal-body").html(`<div class="error">加载失败: ${error}</div>`);
+                //     }
+                // });
+
+                $.ajax({
+                    url: `http://localhost:3000/component/${componentId}`,
+                    method: 'GET',
+                    success: function (response) {
+                        console.log("API响应:", response);
+
+                        if (response.modalContent) {
+                            // 直接插入已修改的HTML（后端需返回修改后的结构）
+                            $("#modal-body").html(response.modalContent);
+                            $("#modal-title").text(response.name || "组件详情");
+                            $("#modal").removeClass("hidden");
+                        } else {
+                            $("#modal-body").html('<div class="error">组件详情加载失败</div>');
+                            $("#modal").removeClass("hidden");
+                        }
+                    },
+                    error: function (xhr, status, error) {
+                        console.error("请求失败:", error);
+                        $("#modal-body").html(`<div class="error">加载失败: ${error}</div>`);
+                        $("#modal").removeClass("hidden");
+                    }
+                });
+
+
+
+                // 关闭主弹窗的函数
+                function closeModal() {
+                    $("#modal").addClass("hidden");
+                }
+            });
+
+            // 关闭弹窗
+            $("#close-modal, #modal").click(function (e) {
+                // 只有当点击的是模态框背景或关闭按钮时才关闭
+                if ($(e.target).is("#modal") || $(e.target).is("#close-modal") || $(e.target).is("#close-modal i")) {
+                    $("#modal").hide(); // 隐藏弹窗
+                }
+            });
+
+            // 防止弹窗内容点击时关闭
+            $(".modal-content").click(function (e) {
+                e.stopPropagation();
+            });
+
+
+
+            // 默认加载客厅
+            loadScene("A");
+
+            // 房间切换按钮事件
+            function setActiveButton(activeBtn) {
+                $(".room-btn").removeClass("bg-primary text-white").addClass("bg-white text-gray-700");
+                $(activeBtn).addClass("bg-primary text-white").removeClass("bg-white text-gray-700");
+            }
+
+            // 给所有房间按钮添加room-btn类
+            $("#btn-living-room, #btn-bedroom, #btn-kitchen, #btn-bathroom, #btn-study-room")
+                .addClass("room-btn");
+
+            $("#btn-living-room").click(function () {
+                setActiveButton(this);
+                loadScene("A");
+            });
+
+            $("#btn-bedroom").click(function () {
+                setActiveButton(this);
+                loadScene("B");
+            });
+
+            $("#btn-kitchen").click(function () {
+                setActiveButton(this);
+                loadScene("C");
+            });
+
+            $("#btn-bathroom").click(function () {
+                setActiveButton(this);
+                loadScene("D");
+            });
+
+            $("#btn-study-room").click(function () {
+                setActiveButton(this);
+                loadScene("E");
+            });
+
+
+
+
+
+            //         $(document).on("click", ".device-card", function(e) {
+            //     e.stopPropagation();
+
+            //     const componentId = $(this).attr("data-id");
+            //     console.log("点击的组件ID:", componentId);
+
+            //     if (!componentId) {
+            //         console.error("组件缺少data-id属性");
+            //         return;
+            //     }
+
+            //     // 显示加载状态
+            //     $("#modal").show();
+            //     $("#modal-body").html('<div class="loading-dots"><span></span><span></span><span></span></div>');
+            //     $("#modal-title").text("加载中...");
+
+            //     // 发送请求获取组件详情
+            //     $.ajax({
+            //         url: `http://localhost:3000/component/${componentId}`,
+            //         method: 'GET',
+            //         success: function(response) {
+            //             console.log("API响应:", response);
+
+            //             // 设置标题为组件名称
+            //             $("#modal-title").text(response.name || "组件详情");
+
+            //             // 直接使用后端返回的modalContent
+            //             if (response.modalContent) {
+            //                 $("#modal-body").html(response.modalContent);
+            //             } else {
+            //                 $("#modal-body").html('<div class="error">未找到组件详情</div>');
+            //             }
+            //         },
+            //         error: function(xhr, status, error) {
+            //             console.error("请求失败:", error);
+            //             $("#modal-body").html(`<div class="error">加载失败: ${error}</div>`);
+            //         }
+            //     });
+            // });
+            //         // 关闭弹窗
+            //         $("#close-modal, #modal").click(function(e) {
+            //             // 只有当点击的是模态框背景或关闭按钮时才关闭
+            //             if ($(e.target).is("#modal") || $(e.target).is("#close-modal") || $(e.target).is("#close-modal i")) {
+            //                 $("#modal").hide();
+            //             }
+            //         });
+
+            //         // 点击外部关闭
+            //         $(document).click(function(e) {
+            //             if ($(e.target).hasClass("modal")) {
+            //                 $("#modal").hide();
+            //             }
+            //         });
+
+            //         // 防止弹窗内容点击时关闭
+            // $(".modal-content").click(function(e) {
+            //     e.stopPropagation();
+            // });
+
+            //         // 默认加载客厅
+            //         loadScene("A");
+
+            //         // 房间切换按钮事件
+            //         function setActiveButton(activeBtn) {
+            //             $(".room-btn").removeClass("bg-primary text-white").addClass("bg-white text-gray-700");
+            //             $(activeBtn).addClass("bg-primary text-white").removeClass("bg-white text-gray-700");
+            //         }
+
+            //         // 给所有房间按钮添加room-btn类
+            //         $("#btn-living-room, #btn-bedroom, #btn-kitchen, #btn-bathroom, #btn-study-room")
+            //             .addClass("room-btn");
+
+            //         $("#btn-living-room").click(function () {
+            //             setActiveButton(this);
+            //             loadScene("A");
+            //         });
+
+            //         $("#btn-bedroom").click(function () {
+            //             setActiveButton(this);
+            //             loadScene("B");
+            //         });
+
+            //         $("#btn-kitchen").click(function () {
+            //             setActiveButton(this);
+            //             loadScene("C");
+            //         });
+
+            //         $("#btn-bathroom").click(function () {
+            //             setActiveButton(this);
+            //             loadScene("D");
+            //         });
+
+            //         $("#btn-study-room").click(function () {
+            //             setActiveButton(this);
+            //             loadScene("E");
+            //         });
+        });
+
+    </script>
+
+</body>
+
+</html>
